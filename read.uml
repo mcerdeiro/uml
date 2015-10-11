@@ -1,0 +1,76 @@
+@startuml
+participant App
+participant posix
+participant I2CDev
+participant RTOS
+participant I2CDriver
+
+== opening a I2C device ==
+activate App
+App -> posix: open("/dev/i2c/0/<DevName>",...);
+activate posix
+note right: <DevName> is provided in the\nI2C Device Configuration.
+posix -> I2CDev: open("/dev/i2c/0/<DevName>",...);
+activate I2CDev
+posix <-- I2CDev:
+deactivate I2CDev
+App <-- posix:
+deactivate posix
+...
+
+== blocking writing to I2C device ==
+App -> posix: write("0x20 0x30 0x50");
+activate posix
+posix -> I2CDev: write("0x20 0x30 0x50");
+activate I2CDev
+I2CDev -> I2CDriver: ioctl("START");
+activate I2CDriver
+I2CDev <-- I2CDriver:
+deactivate I2CDriver
+I2CDev -> I2CDriver: write("0x70 0x00 0x00");
+activate I2CDriver
+note left: 0x70: bits 7-1 Add 0x50 for the device\nand Bit 0 is 0 for write. The following\n2 0x00 are the address. Two bytes due to\nthe configuration of this device. The\naddress is only transmited in the\nfirst time or if chaning with\nlseek interface.
+I2CDev <-- I2CDriver: ret = 2 (2Bytes queued for send);
+deactivate I2CDriver
+I2CDev ->x RTOS: WaitEvent()
+deactivate I2CDev
+
+I2CDev <- I2CDriver: txConfirmation
+activate I2CDriver
+activate I2CDev
+I2CDev -> I2CDriver: write(0x00);
+note left: to reuse the application buffer the I2C device\nsends the add. and register address\nfrom a diferent buffer.
+activate I2CDriver
+I2CDev <-- I2CDriver: ret = 1 (1Byte queued for send);
+deactivate I2CDriver
+I2CDev --> I2CDriver
+deactivate I2CDev
+deactivate I2CDriver
+
+I2CDev <- I2CDriver: txConfirmation
+activate I2CDriver
+activate I2CDev
+I2CDev -> I2CDriver: write(0x20 0x30 0x50);
+note left: the buffer application is passed to the driver\nto avoid coping the data.
+activate I2CDriver
+I2CDev <-- I2CDriver: ret = 3
+deactivate I2CDriver
+I2CDev -> I2CDriver: ioctl("STOP");
+note left: only send if no more communications are pending,\nif pending the next transmission is started.
+activate I2CDriver
+I2CDev <-- I2CDriver:
+deactivate I2CDriver
+I2CDev ->x RTOS: SetEvent();
+note left: All bytes have been transmitted,\nappl. can be continued.
+I2CDev --> I2CDriver
+deactivate I2CDev
+deactivate I2CDriver
+
+I2CDev <-- RTOS: Return from WaitEvent
+activate I2CDev
+posix <-- I2CDev
+deactivate I2CDev
+App <-- posix
+deactivate posix
+
+@enduml

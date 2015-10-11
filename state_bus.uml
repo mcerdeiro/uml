@@ -1,0 +1,37 @@
+@startuml
+[*] --> CIAA_I2C_IDLE
+CIAA_I2C_IDLE --> CIAA_I2C_WRITE_SLVADD: write()
+CIAA_I2C_WRITE_SLVADD --> CIAA_I2C_WRITE_ADD: I2C device needs to update the\nregister address and driver took\nonly the first byte (slave address)
+CIAA_I2C_WRITE_SLVADD --> CIAA_I2C_WRITE_DATA: register address\nis not needed
+CIAA_I2C_WRITE_ADD -down-> CIAA_I2C_WRITE_DATA
+
+CIAA_I2C_IDLE --> CIAA_I2C_READ_SLVADD: read()
+CIAA_I2C_READ_SLVADD -down-> CIAA_I2C_READ_ADD
+CIAA_I2C_READ_SLVADD --> CIAA_I2C_READ_DATA
+CIAA_I2C_READ_ADD -down-> CIAA_I2C_READ_DATA
+
+CIAA_I2C_READ_DATA -up-> CIAA_I2C_IDLE: no other communications\nare pendings / drv_ioctl(STOP)
+CIAA_I2C_WRITE_DATA -up-> CIAA_I2C_IDLE: no other communications\nare pendings / drv_ioctl(STOP)
+
+CIAA_I2C_READ_DATA -up-> CIAA_I2C_READ_SLVADD: data to be\nread pending
+CIAA_I2C_READ_DATA -up-> CIAA_I2C_WRITE_SLVADD: data to be\nwritten pending
+
+CIAA_I2C_WRITE_DATA -up-> CIAA_I2C_READ_SLVADD: data to be\nread pending
+CIAA_I2C_WRITE_DATA -up-> CIAA_I2C_WRITE_SLVADD: data to be\nwritten pending
+
+state CIAA_I2C_IDLE {
+   [*] --> STOP: drv_ioctl(STOP);
+   note "The first time the STOP\nshall not be called." as N2
+}
+
+state CIAA_I2C_WRITE_SLVADD {
+   [*] --> WRITE_START: drv_ioctl(START);
+}
+
+CIAA_I2C_WRITE_ADD: writing register address
+CIAA_I2C_WRITE_DATA: writing data
+
+state CIAA_I2C_READ_SLVADD {
+   [*] --> READ_START: drv_ioctl(START);
+}
+@enduml
